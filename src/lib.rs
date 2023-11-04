@@ -1,11 +1,9 @@
-mod map;
 
 use std::cell::RefCell;
-use std::collections::{/*HashMap,*/ HashSet};
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicUsize, Ordering};
 use std::fmt::Debug;
-use map::Map as HashMap;
 
 const RETIRE_LIMIT: usize = 5;
 
@@ -20,24 +18,12 @@ pub struct WRRMMap<K, V> {
 impl<K: Clone + PartialEq + Eq + Hash + Debug + Default, V: Clone + Debug> WRRMMap<K, V> {
     /// Supports only one HashMap at any time
     pub unsafe fn new() -> Self {
-        let mut map = HashMap::new();
-        let map_ptr = &mut map as *mut _;
-        std::mem::forget(map);
+        let map = Box::leak(Box::new(HashMap::new()));
 
-        let map = Self {
-            inner: AtomicPtr::new(map_ptr),
+        Self {
+            inner: AtomicPtr::new(map as _),
             hazard_list: HazardList::new(),
-        };
-        println!("new map: {:#?}", map);
-
-        let ptr = map.inner.load(Ordering::SeqCst);
-        println!("new ptr: {:#?}", ptr);
-        let m = unsafe { ptr.as_ref().unwrap() };
-        println!("map: {:#?}", m.get(&Default::default()));
-        // println!("map: {:#?}", m.get(&Default::default()));
-        // println!("map: {:#?}", m.get(&Default::default()));
-
-        map
+        }
     }
 
     pub fn update(&self, key: K, val: V) {
@@ -49,19 +35,18 @@ impl<K: Clone + PartialEq + Eq + Hash + Debug + Default, V: Clone + Debug> WRRMM
 
             let mut new = (*old).clone();
             new.insert(key.clone(), val.clone());
-            let new_ptr = &mut new as *mut _;
-            std::mem::forget(new);
+            let new = Box::leak(Box::new(new));
 
             if self
                 .inner
-                .compare_exchange(old_ptr, new_ptr, Ordering::SeqCst, Ordering::Relaxed)
+                .compare_exchange(old_ptr, new as _, Ordering::SeqCst, Ordering::Relaxed)
                 .is_ok()
             {
                 break;
             }
 
             unsafe {
-                std::ptr::drop_in_place(new_ptr);
+                std::ptr::drop_in_place(new as _);
             }
         }
 
@@ -70,28 +55,19 @@ impl<K: Clone + PartialEq + Eq + Hash + Debug + Default, V: Clone + Debug> WRRMM
 
     pub fn get(&self, key: &K) -> Option<V> {
         let node = self.hazard_list.acquire();
-        println!("get1: {:#?}", *node);
         loop {
             let ptr = self.inner.load(Ordering::SeqCst);
-            println!("get2: {:#?}", ptr);
             node.hazard.store(ptr, Ordering::SeqCst);
 
-            println!("get3: {:#?}", *node);
             if self.inner.load(Ordering::SeqCst) == ptr {
-                println!("get4");
                 break;
             }
-            println!("get5");
         }
 
-        println!("get6: {:#?}", self);
         let map = unsafe { self.inner.load(Ordering::SeqCst).as_ref().unwrap() };
-        println!("get7");
         let result = map.get(key).cloned();
-        println!("get8");
 
         self.hazard_list.release(node);
-        println!("get9");
 
         result
     }
@@ -187,11 +163,8 @@ impl<K, V> HazardList<K, V> {
 
     // Releases a hazard pointer
     fn release(&self, ptr: &mut HazardNode<K, V>) {
-        println!("rel1");
         ptr.hazard.store(std::ptr::null_mut(), Ordering::SeqCst);
-        println!("rel2");
         ptr.active.store(false, Ordering::SeqCst);
-        println!("rel3");
     }
 
     fn scan(&self) {

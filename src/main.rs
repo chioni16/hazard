@@ -4,23 +4,18 @@ use hazard::WRRMMap;
 fn main() {
     let map = unsafe { WRRMMap::<usize, usize>::new() };
 
-    println!("hello");
 
     let map = Arc::new(map);
 
     println!("{:#?}", map.get(&1));
-    println!("hello2");
 
     map.update(1, 2);
     map.update(3, 4);
 
-    println!("hello3");
     let map2 = Arc::clone(&map);
     let handle = thread::spawn(move || {
-        assert_eq!(map2.get(&1), Some(2));
-        assert_eq!(map2.get(&3), Some(4));
         map2.update(1, 7);
-        assert_eq!(map2.get(&3), Some(4));
+        map2.update(6, 12);
     });
 
     map.update(3, 8);
@@ -28,6 +23,13 @@ fn main() {
 
     handle.join().unwrap();
 
+    println!("1: {:?}", map.get(&1));
+    println!("2: {:?}", map.get(&2));
+    println!("3: {:?}", map.get(&3));
+    println!("4: {:?}", map.get(&4));
+    println!("5: {:?}", map.get(&5));
+    println!("6: {:?}", map.get(&6));
+    println!("7: {:?}", map.get(&7));
     println!("{:#?}", map);
 
 }
