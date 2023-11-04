@@ -4,8 +4,16 @@ use std::{
 };
 
 #[derive(Debug, Clone)]
-struct Map<K, V> {
+pub struct Map<K, V> {
     inner: HashMap<K, V>,
+}
+
+impl<K, V> Map<K, V> {
+    pub fn new() -> Self {
+        Self {
+            inner: HashMap::new(),
+        }
+    }
 }
 
 impl<K, V> Drop for Map<K, V> {

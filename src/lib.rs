@@ -1,10 +1,11 @@
 mod map;
 
 use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
+use std::collections::{/*HashMap,*/ HashSet};
 use std::hash::Hash;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicUsize, Ordering};
 use std::fmt::Debug;
+use map::Map as HashMap;
 
 const RETIRE_LIMIT: usize = 5;
 
@@ -16,7 +17,7 @@ pub struct WRRMMap<K, V> {
     hazard_list: HazardList<K, V>,
 }
 
-impl<K: Clone + PartialEq + Eq + Hash + Debug, V: Clone + Debug> WRRMMap<K, V> {
+impl<K: Clone + PartialEq + Eq + Hash + Debug + Default, V: Clone + Debug> WRRMMap<K, V> {
     /// Supports only one HashMap at any time
     pub unsafe fn new() -> Self {
         let mut map = HashMap::new();
@@ -28,6 +29,14 @@ impl<K: Clone + PartialEq + Eq + Hash + Debug, V: Clone + Debug> WRRMMap<K, V> {
             hazard_list: HazardList::new(),
         };
         println!("new map: {:#?}", map);
+
+        let ptr = map.inner.load(Ordering::SeqCst);
+        println!("new ptr: {:#?}", ptr);
+        let m = unsafe { ptr.as_ref().unwrap() };
+        println!("map: {:#?}", m.get(&Default::default()));
+        // println!("map: {:#?}", m.get(&Default::default()));
+        // println!("map: {:#?}", m.get(&Default::default()));
+
         map
     }
 
